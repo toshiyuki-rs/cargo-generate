@@ -46,12 +46,37 @@ pub fn create(project_dir: &PathBuf, args: GitConfig) -> Result<(), failure::Err
     let temp = Builder::new()
         .prefix(project_dir.to_str().unwrap_or("cargo-generate"))
         .tempdir()?;
-    let config = Config::default()?;
+
+    let config = Config::default();
+    let config = match config {
+        Ok(conf) => conf,
+        Err(err) => match err.downcast::<failure::Error>() {
+            Ok(e) => return Err(e),
+            Err(e) => panic!("unexpected error")
+        }
+    };
     let remote = GitRemote::new(&args.remote);
-    let (db, rev) = remote.checkout(&temp.path(), &args.branch, &config)?;
+    let rem_res = remote.checkout(&temp.path(), &args.branch, &config);
+
+    let (db, rev) = match rem_res {
+        Ok((db, rev)) => (db, rev),
+        Err(err) => match err.downcast::<failure::Error>() {
+            Ok(e) => return Err(e),
+            Err(e) => panic!("unexpected error")
+        }
+    };
 
     // This clones the remote and handles all the submodules
-    db.copy_to(rev, project_dir.as_path(), &config)?;
+    let db_res = db.copy_to(rev, project_dir.as_path(), &config);
+
+    match db_res {
+        Ok(co) => (),
+        Err(err) => match err.downcast::<failure::Error>() {
+            Ok(e) => return Err(e),
+            Err(e) => panic!("unexpected error")
+        }
+    };
+
     Ok(())
 }
 
